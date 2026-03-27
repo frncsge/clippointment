@@ -89,7 +89,7 @@ export const getAvailableTimeSlots = async (req, res) => {
       slotInterval: slot_interval,
     });
 
-    res.status(201).json({ timeSlots });
+    res.status(201).json({ slotInterval: slot_interval, timeSlots });
   } catch (error) {
     console.error(
       "An error occured while trying to get available time slots:",

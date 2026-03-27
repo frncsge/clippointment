@@ -22,11 +22,18 @@ export const addWorkHours = async (req, res) => {
     await createWorkHours({ date, startTime, endTime, slotInterval });
     res.status(201).json({ message: "New work hours succesfully added" });
   } catch (error) {
-    // error for duplicate values
+    // error for duplicate dates
     if (error.code === "23505") {
       return res
         .status(400)
         .json({ message: `Work hours for date ${date} already exist` });
+    }
+
+    // error for entering date < current date
+    if (error.code === "23514") {
+      return res
+        .status(400)
+        .json({ message: "Cannot set work hours for a past date" });
     }
 
     console.error(

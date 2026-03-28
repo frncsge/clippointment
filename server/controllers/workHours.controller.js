@@ -6,6 +6,7 @@ import {
   updateWorkHoursByDate,
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
+import { getUnavailableTimeSlotsByDate } from "../models/unavailableTimeSlots.model.js";
 
 export const addWorkHours = async (req, res) => {
   const { date, startTime, endTime, slotInterval } = req.body;
@@ -91,7 +92,15 @@ export const getAvailableTimeSlots = async (req, res) => {
       slotInterval: slot_interval,
     });
 
-    res.status(201).json({ slotInterval: slot_interval, timeSlots });
+    // get unavailable time slots
+    const result = (await getUnavailableTimeSlotsByDate(date)) || [];
+    const unavailableTimeSlots = result.map((res) => res.time_slot.slice(0, 5)); // slice to make it 00:00 instead of 00:00:00
+
+    const availableTimeSlots = timeSlots.filter(
+      (slot) => !unavailableTimeSlots.includes(slot),
+    );
+
+    res.status(201).json({ slotInterval: slot_interval, availableTimeSlots });
   } catch (error) {
     console.error(
       "An error occured while trying to get available time slots:",
@@ -110,9 +119,12 @@ export const updateWorkHours = async (req, res) => {
   const allowedFields = ["date", "start_time", "end_time", "slot_interval"];
 
   if (!setDate) return res.status(400).json({ message: "Date is required" });
-  
+
   const dateError = validateDateInput(setDate);
-  if (dateError) return res.status(400).json({message: "Date must be in YYYY-MM-DD format"});
+  if (dateError)
+    return res
+      .status(400)
+      .json({ message: "Date must be in YYYY-MM-DD format" });
 
   // take the keys of req.body object
   const keys = Object.keys(updates);

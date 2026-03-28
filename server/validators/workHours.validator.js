@@ -12,8 +12,10 @@ export const validateWorkHoursInput = ({
   endTime,
   slotInterval,
 }) => {
-  const dateError = validateDateInput(date);
-  if (dateError) return dateError;
+  if (date !== undefined) {
+    const dateError = validateDateInput(date);
+    if (dateError) return dateError;
+  }
 
   if (startTime !== undefined && !validateTime(startTime)) {
     return "Start time is invalid (HH:MM)";

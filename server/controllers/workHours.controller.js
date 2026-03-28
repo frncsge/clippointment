@@ -110,6 +110,9 @@ export const updateWorkHours = async (req, res) => {
   const allowedFields = ["date", "start_time", "end_time", "slot_interval"];
 
   if (!setDate) return res.status(400).json({ message: "Date is required" });
+  
+  const dateError = validateDateInput(setDate);
+  if (dateError) return res.status(400).json({message: "Date must be in YYYY-MM-DD format"});
 
   // take the keys of req.body object
   const keys = Object.keys(updates);
@@ -127,7 +130,7 @@ export const updateWorkHours = async (req, res) => {
 
   // validate
   const error = validateWorkHoursInput({
-    date: setDate,
+    date: updates.date,
     startTime: updates.start_time,
     endTime: updates.end_time,
     slotInterval: updates.slot_interval,
@@ -154,11 +157,18 @@ export const updateWorkHours = async (req, res) => {
     if (error.code === "23505") {
       return res
         .status(400)
-        .json({ message: `Work hours for date ${setDate} already exist` });
+        .json({ message: `Work hours for date ${updates.date} already exist` });
+    }
+
+    // error for entering end time < start time
+    if (error.constraint === "work_hours_check") {
+      return res
+        .status(400)
+        .json({ message: "Start time must be before end time" });
     }
 
     // error for entering date < current date
-    if (error.code === "23514") {
+    if (error.constraint === "no_past_date") {
       return res
         .status(400)
         .json({ message: "Cannot set work hours for a past date" });

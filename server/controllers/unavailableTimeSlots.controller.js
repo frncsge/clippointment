@@ -47,7 +47,7 @@ export const addUnavailableTimeSlot = async (req, res) => {
     await addUnavailableTimeSlotToDB(date, timeSlot);
     res
       .status(201)
-      .json({ message: `Time slot ${timeSlot} added as unavailable` });
+      .json({ message: `Time slot ${timeSlot} is successfully added as unavailable` });
   } catch (error) {
     // error for unavailable time slot in the same date
     if (error.code === "23505") {

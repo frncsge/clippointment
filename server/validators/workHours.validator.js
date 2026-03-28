@@ -12,33 +12,38 @@ export const validateWorkHoursInput = ({
   endTime,
   slotInterval,
 }) => {
-  if (!date || !startTime || !endTime || !slotInterval) {
-    return "All inputs are required";
-  }
-
   const dateError = validateDateInput(date);
   if (dateError) return dateError;
 
-  if (!validateTime(startTime)) {
+  if (startTime !== undefined && !validateTime(startTime)) {
     return "Start time is invalid (HH:MM)";
   }
 
-  if (!validateTime(endTime)) {
+  if (endTime !== undefined && !validateTime(endTime)) {
     return "End time is invalid (HH:MM)";
   }
 
   // make sure that start time is earlier than end time
-  if (!validateWorkHour(startTime, endTime)) {
+  if (
+    startTime !== undefined &&
+    endTime !== undefined &&
+    !validateWorkHour(startTime, endTime)
+  ) {
     return "Start time must be before end time";
   }
 
   // slot interval must be time in minutes
-  if (!validateSlotInterval(slotInterval)) {
+  if (slotInterval !== undefined && !validateSlotInterval(slotInterval)) {
     return "Slot interval must be a positive number";
   }
 
   // check if slot interval fits within the given work hours
-  if (!validateSlotIntervalLength({ startTime, endTime, slotInterval })) {
+  if (
+    startTime !== undefined &&
+    endTime !== undefined &&
+    slotInterval !== undefined &&
+    !validateSlotIntervalLength({ startTime, endTime, slotInterval })
+  ) {
     return "Time range for work hours is too short for the slot interval";
   }
 

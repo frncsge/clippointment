@@ -29,7 +29,7 @@ export const getWorkHoursByDate = async (date) => {
       "SELECT * FROM work_hours WHERE date = $1",
       [date],
     );
-    return result.rows[0];
+    return result;
   } catch (error) {
     console.error(
       "An error occured while trying to get work hours by date:",
@@ -56,6 +56,20 @@ export const updateWorkHoursByDate = async ({ date, keys, values }) => {
   } catch (error) {
     console.error(
       "An error occured while trying to update work hours by date:",
+      error,
+    );
+    throw error;
+  }
+};
+
+export const deleteWorkHoursByDate = async (date) => {
+  try {
+    const result = await pool.query("DELETE FROM work_hours WHERE date = $1", [date]);
+
+    return result;
+  } catch (error) {
+    console.error(
+      "An error occured while trying to delete work hours by date:",
       error,
     );
     throw error;

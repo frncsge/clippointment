@@ -19,8 +19,11 @@
   },
   "homepage": "https://github.com/frncsge/barber-appointment-system#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "pg": "^8.20.0"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.20.0",
+    "redis": "^5.11.0"
   }
 }

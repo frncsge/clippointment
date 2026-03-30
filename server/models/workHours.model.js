@@ -1,6 +1,7 @@
 import pool from "../../config/dbConfig.js";
 
 export const createWorkHours = async ({
+  userId,
   date,
   startTime,
   endTime,
@@ -9,10 +10,10 @@ export const createWorkHours = async ({
   try {
     await pool.query(
       `
-                INSERT INTO work_hours (date, start_time, end_time, slot_interval)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO work_hours (user_id, date, start_time, end_time, slot_interval)
+                VALUES ($1, $2, $3, $4, $5)
             `,
-      [date, startTime, endTime, slotInterval],
+      [userId, date, startTime, endTime, slotInterval],
     );
   } catch (error) {
     console.error(

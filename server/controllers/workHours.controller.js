@@ -25,7 +25,13 @@ export const addWorkHours = async (req, res) => {
   if (error) return res.status(400).json({ message: error });
 
   try {
-    await createWorkHours({ date, startTime, endTime, slotInterval });
+    await createWorkHours({
+      userId: req.user.id,
+      date,
+      startTime,
+      endTime,
+      slotInterval,
+    });
     res.status(201).json({ message: "New work hours succesfully added" });
   } catch (error) {
     // error for duplicate dates

@@ -7,10 +7,11 @@ import {
   deleteWorkHours,
 } from "../controllers/workHours.controller.js";
 import { addUnavailableTimeSlot } from "../controllers/unavailableTimeSlots.controller.js";
+import { authenticateUser } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/work-hours", addWorkHours);
+router.post("/work-hours", authenticateUser, addWorkHours);
 router.post("/work-hours/:date/unavailable-time-slots", addUnavailableTimeSlot);
 router.get("/work-hours/:date", getWorkHours);
 router.get("/work-hours/:date/time-slots", getAvailableTimeSlots);

@@ -1,10 +1,10 @@
 import { validateDateInput } from "../validators/date.validator.js";
 import { generateTimeSlots, validateTime } from "../utils/time.util.js";
 import { addUnavailableTimeSlotToDB } from "../models/unavailableTimeSlots.model.js";
-import { getWorkHoursByDate } from "../models/workHours.model.js";
+import { getWorkHoursByIdAndDate } from "../models/workHours.model.js";
 
 export const addUnavailableTimeSlot = async (req, res) => {
-  const { date } = req.params;
+  const { id, date } = req.params;
   const { timeSlot } = req.body;
 
   if (date === undefined)
@@ -22,7 +22,7 @@ export const addUnavailableTimeSlot = async (req, res) => {
 
   try {
     // get work hours from given date
-    const workHours = await getWorkHoursByDate(date);
+    const workHours = await getWorkHoursByIdAndDate(id, date);
     if (!workHours)
       return res
         .status(200)
@@ -37,17 +37,17 @@ export const addUnavailableTimeSlot = async (req, res) => {
 
     // check if inputted time slot is in the generated slots
     if (!timeSlots.includes(timeSlot))
-      return res
-        .status(400)
-        .json({
-          message: `${timeSlot} is not an available time slot for ${date}`,
-          timeSlots,
-        });
+      return res.status(400).json({
+        message: `${timeSlot} is not an available time slot for ${date}`,
+        timeSlots,
+      });
 
     await addUnavailableTimeSlotToDB(date, timeSlot);
     res
       .status(201)
-      .json({ message: `Time slot ${timeSlot} is successfully added as unavailable` });
+      .json({
+        message: `Time slot ${timeSlot} is successfully added as unavailable`,
+      });
   } catch (error) {
     // error for unavailable time slot in the same date
     if (error.code === "23505") {

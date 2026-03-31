@@ -7,7 +7,7 @@ import {
   deleteWorkHoursByDate,
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
-import { getUnavailableTimeSlotsByDate } from "../models/unavailableTimeSlots.model.js";
+import { getUnavailableTimeSlotsByIdAndDate } from "../models/unavailableTimeSlots.model.js";
 
 export const addWorkHours = async (req, res) => {
   const { date, startTime, endTime, slotInterval } = req.body;
@@ -84,20 +84,23 @@ export const getWorkHours = async (req, res) => {
 };
 
 export const getAvailableTimeSlots = async (req, res) => {
-  const { date } = req.params;
+  const { id, date } = req.params;
+
+  if (isNaN(id))
+    return res.status(400).json({ message: "ID must be a positive number" });
 
   const error = validateDateInput(date);
   if (error) res.status(400).json({ message: error });
 
   try {
-    const workHours = await getWorkHoursByDate(date);
+    const workHours = await getWorkHoursByIdAndDate(id, date);
 
-    if (!workHours)
+    if (workHours.rowCount === 0)
       return res
         .status(200)
         .json({ message: `Work hours have not been set for ${date}` });
 
-    const { start_time, end_time, slot_interval } = workHours;
+    const { barber, start_time, end_time, slot_interval } = workHours.rows[0];
 
     // generate time slots based on work hours + slot interval
     const timeSlots = generateTimeSlots({
@@ -107,14 +110,16 @@ export const getAvailableTimeSlots = async (req, res) => {
     });
 
     // get unavailable time slots
-    const result = (await getUnavailableTimeSlotsByDate(date)) || [];
+    const result = (await getUnavailableTimeSlotsByIdAndDate(id, date)) || [];
     const unavailableTimeSlots = result.map((res) => res.time_slot.slice(0, 5)); // slice to make it 00:00 instead of 00:00:00
 
     const availableTimeSlots = timeSlots.filter(
       (slot) => !unavailableTimeSlots.includes(slot),
     );
 
-    res.status(201).json({ slotInterval: slot_interval, availableTimeSlots });
+    res
+      .status(201)
+      .json({ barber, date, slotInterval: slot_interval, availableTimeSlots });
   } catch (error) {
     console.error(
       "An error occured while trying to get available time slots:",

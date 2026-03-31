@@ -15,11 +15,21 @@ export const addUnavailableTimeSlotToDB = async (date, timeSlot) => {
   }
 };
 
-export const getUnavailableTimeSlotsByDate = async (date) => {
+export const getUnavailableTimeSlotsByIdAndDate = async (userId, date) => {
   try {
     const result = await pool.query(
-      "SELECT time_slot FROM unavailable_time_slots WHERE date = $1",
-      [date],
+      `
+        SELECT 
+	        u.account_name AS "barber",
+	        wh.date,
+	        uts.time_slot,
+	        uts.reason
+        FROM work_hours wh
+        JOIN users u ON u.id = wh.user_id
+        JOIN unavailable_time_slots uts ON uts.work_hours_id = wh.id
+        WHERE wh.date = $1 AND wh.user_id = $2;
+      `,
+      [date, userId],
     );
 
     return result.rows;
@@ -31,4 +41,3 @@ export const getUnavailableTimeSlotsByDate = async (date) => {
     throw error;
   }
 };
-

@@ -24,12 +24,20 @@ export const createWorkHours = async ({
   }
 };
 
-export const getWorkHoursByDate = async (date) => {
+export const getWorkHoursByIdAndDate = async (userId, date) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM work_hours WHERE date = $1",
-      [date],
+      `
+        SELECT 
+	        u.account_name AS "barber",
+	        wh.*
+        FROM work_hours wh
+        JOIN users u ON u.id = wh.user_id
+        WHERE wh.date = $1 AND wh.user_id = $2;
+      `,
+      [date, userId],
     );
+
     return result;
   } catch (error) {
     console.error(
@@ -65,7 +73,9 @@ export const updateWorkHoursByDate = async ({ date, keys, values }) => {
 
 export const deleteWorkHoursByDate = async (date) => {
   try {
-    const result = await pool.query("DELETE FROM work_hours WHERE date = $1", [date]);
+    const result = await pool.query("DELETE FROM work_hours WHERE date = $1", [
+      date,
+    ]);
 
     return result;
   } catch (error) {

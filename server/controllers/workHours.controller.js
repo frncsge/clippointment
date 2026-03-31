@@ -3,7 +3,7 @@ import { validateDateInput } from "../validators/date.validator.js";
 import {
   createWorkHours,
   getWorkHoursByIdAndDate,
-  updateWorkHoursByDate,
+  updateWorkHoursByIdAndDate,
   deleteWorkHoursByDate,
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
@@ -169,14 +169,15 @@ export const updateWorkHours = async (req, res) => {
   if (error) return res.status(400).json({ message: error });
 
   try {
-    const workHours = await getWorkHoursByDate(setDate);
+    const workHours = await getWorkHoursByIdAndDate(req.user.id, setDate);
     if (workHours.rowCount === 0)
       return res
         .status(200)
         .json({ message: `Work hours have not been set for ${setDate}` });
 
     const values = Object.values(updates);
-    const updatedWorkHours = await updateWorkHoursByDate({
+    const updatedWorkHours = await updateWorkHoursByIdAndDate({
+      userId: req.user.id,
       date: setDate,
       keys,
       values,

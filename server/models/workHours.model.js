@@ -48,17 +48,24 @@ export const getWorkHoursByIdAndDate = async (userId, date) => {
   }
 };
 
-export const updateWorkHoursByDate = async ({ date, keys, values }) => {
+export const updateWorkHoursByIdAndDate = async ({
+  userId,
+  date,
+  keys,
+  values,
+}) => {
   const setClaus = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
 
   const query = `
     UPDATE work_hours
     SET ${setClaus}
-    WHERE date = $${keys.length + 1}
+    WHERE user_id = $${keys.length + 1} AND date = $${keys.length + 2}
     RETURNING *
   `;
 
+  values.push(userId);
   values.push(date);
+  
   try {
     const result = await pool.query(query, values);
     return result.rows[0];

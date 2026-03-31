@@ -2,7 +2,7 @@ import { validateWorkHoursInput } from "../validators/workHours.validator.js";
 import { validateDateInput } from "../validators/date.validator.js";
 import {
   createWorkHours,
-  getWorkHoursByDate,
+  getWorkHoursByIdAndDate,
   updateWorkHoursByDate,
   deleteWorkHoursByDate,
 } from "../models/workHours.model.js";
@@ -60,13 +60,16 @@ export const addWorkHours = async (req, res) => {
 };
 
 export const getWorkHours = async (req, res) => {
-  const { date } = req.params;
+  const { id, date } = req.params;
+
+  if (isNaN(id))
+    return res.status(400).json({ message: "ID must be a positive number" });
 
   const error = validateDateInput(date);
   if (error) return res.status(400).json({ message: error });
 
   try {
-    const workHours = await getWorkHoursByDate(date);
+    const workHours = await getWorkHoursByIdAndDate(id, date);
 
     if (workHours.rowCount === 0)
       return res.status(404).json({ message: `No work hours set for ${date}` });

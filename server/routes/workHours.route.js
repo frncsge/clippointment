@@ -16,6 +16,6 @@ router.post("/work-hours/:date/unavailable-time-slots", addUnavailableTimeSlot);
 router.get("/barbers/:id/work-hours/:date", getWorkHours);
 router.get("/barbers/:id/work-hours/:date/time-slots", getAvailableTimeSlots);
 router.patch("/work-hours/:date", authenticateUser, updateWorkHours);
-router.delete("/work-hours/:date", deleteWorkHours);
+router.delete("/work-hours/:date", authenticateUser, deleteWorkHours);
 
 export default router;

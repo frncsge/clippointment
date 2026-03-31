@@ -4,7 +4,7 @@ import {
   createWorkHours,
   getWorkHoursByIdAndDate,
   updateWorkHoursByIdAndDate,
-  deleteWorkHoursByDate,
+  deleteWorkHoursByIdAndDate,
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
 import { getUnavailableTimeSlotsByIdAndDate } from "../models/unavailableTimeSlots.model.js";
@@ -224,7 +224,7 @@ export const deleteWorkHours = async (req, res) => {
   if (error) res.status(400).json({ message: error });
 
   try {
-    const result = await deleteWorkHoursByDate(date);
+    const result = await deleteWorkHoursByIdAndDate(req.user.id, date);
     if (result.rowCount === 0)
       return res
         .status(404)

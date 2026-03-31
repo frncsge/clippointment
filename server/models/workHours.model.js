@@ -65,7 +65,7 @@ export const updateWorkHoursByIdAndDate = async ({
 
   values.push(userId);
   values.push(date);
-  
+
   try {
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -78,11 +78,12 @@ export const updateWorkHoursByIdAndDate = async ({
   }
 };
 
-export const deleteWorkHoursByDate = async (date) => {
+export const deleteWorkHoursByIdAndDate = async (userId, date) => {
   try {
-    const result = await pool.query("DELETE FROM work_hours WHERE date = $1", [
-      date,
-    ]);
+    const result = await pool.query(
+      "DELETE FROM work_hours WHERE user_id = $1 AND date = $2",
+      [userId, date],
+    );
 
     return result;
   } catch (error) {

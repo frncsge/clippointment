@@ -172,7 +172,7 @@ export const updateWorkHours = async (req, res) => {
     const workHours = await getWorkHoursByIdAndDate(req.user.id, setDate);
     if (workHours.rowCount === 0)
       return res
-        .status(200)
+        .status(400)
         .json({ message: `Work hours have not been set for ${setDate}` });
 
     const values = Object.values(updates);

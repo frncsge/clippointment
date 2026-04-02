@@ -1,11 +1,14 @@
 import { validateDateInput } from "../validators/date.validator.js";
 import { generateTimeSlots, validateTime } from "../utils/time.util.js";
-import { addUnavailableTimeSlotToDB } from "../models/unavailableTimeSlots.model.js";
-import { getWorkHoursByDate } from "../models/workHours.model.js";
+import {
+  addUnavailableTimeSlotToDB,
+  getUnavailableTimeSlotsByIdAndDate,
+} from "../models/unavailableTimeSlots.model.js";
+import { getWorkHoursByIdAndDate } from "../models/workHours.model.js";
 
 export const addUnavailableTimeSlot = async (req, res) => {
   const { date } = req.params;
-  const { timeSlot } = req.body;
+  const { timeSlots } = req.body;
 
   if (date === undefined)
     return res.status(400).json({ message: "Date is required" });
@@ -13,47 +16,68 @@ export const addUnavailableTimeSlot = async (req, res) => {
   const error = validateDateInput(date);
   if (error) return res.status(400).json({ message: error });
 
-  if (timeSlot === undefined)
+  if (!timeSlots)
     return res.status(400).json({ message: "Time slot is required" });
 
-  // validate time
-  if (!validateTime(timeSlot))
+  if (!Array.isArray(timeSlots))
+    return res.status(400).json({ message: "Time slot must be an array" });
+
+  // validate time slot
+  const hasInvalidTime = timeSlots.some((timeSlot) => !validateTime(timeSlot));
+
+  if (hasInvalidTime)
     return res.status(400).json({ message: "Invalid time (HH:MM)" });
 
   try {
     // get work hours from given date
-    const workHours = await getWorkHoursByDate(date);
-    if (!workHours)
+    const workHours = await getWorkHoursByIdAndDate(req.user.id, date);
+    if (workHours.rowCount === 0)
       return res
         .status(200)
         .json({ message: `Work hours have not been set for ${date}` });
 
     // generate time slots array based on start time, end time, and slot interval of work hours
-    const timeSlots = generateTimeSlots({
-      startTime: workHours.start_time,
-      endTime: workHours.end_time,
-      slotInterval: workHours.slot_interval,
+    const { id, start_time, end_time, slot_interval } = workHours.rows[0];
+    const generatedTimeSlots = generateTimeSlots({
+      startTime: start_time,
+      endTime: end_time,
+      slotInterval: slot_interval,
     });
 
-    // check if inputted time slot is in the generated slots
-    if (!timeSlots.includes(timeSlot))
-      return res
-        .status(400)
-        .json({
-          message: `${timeSlot} is not an available time slot for ${date}`,
-          timeSlots,
-        });
+    // get time slots marked as unavailable by the barber based on his work hours in a specific date
+    const unavailableTimeSlots = await getUnavailableTimeSlotsByIdAndDate(
+      req.user.id,
+      date,
+    );
 
-    await addUnavailableTimeSlotToDB(date, timeSlot);
-    res
-      .status(201)
-      .json({ message: `Time slot ${timeSlot} added as unavailable` });
+    // filter the generated time slots to exclude slots that are already marked as unavailable by the barber
+    const availableGeneratedTimeSlots = generatedTimeSlots.filter(
+      (generatedTimeSlot) => !unavailableTimeSlots.includes(generatedTimeSlot),
+    );
+
+    // check if inputted time slot is in the generated slots
+    const invalidTimeSlots = timeSlots.filter(
+      (timeSlot) => !availableGeneratedTimeSlots.includes(timeSlot),
+    );
+
+    if (invalidTimeSlots.length > 0)
+      return res.status(400).json({
+        message: `Cannot add time slots to be unavailable that are already unavailable`,
+        invalidTimeSlots,
+        availableTimeSlots: availableGeneratedTimeSlots,
+      });
+
+    await addUnavailableTimeSlotToDB(id, timeSlots);
+    res.status(201).json({
+      message: `Time slots are successfully added as unavailable`,
+      addedUnavailableTimeSlots: timeSlots,
+    });
   } catch (error) {
     // error for unavailable time slot in the same date
     if (error.code === "23505") {
-      return res
-        .status(400)
-        .json({ message: `${timeSlot} is already unavailable for ${date}` });
+      return res.status(400).json({
+        message: `${timeSlots.length > 1 ? `${timeSlots.join(", ")} are ` : `${timeSlots} is `}already unavailable for ${date}`,
+      });
     }
 
     console.error(

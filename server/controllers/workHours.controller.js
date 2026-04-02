@@ -2,10 +2,12 @@ import { validateWorkHoursInput } from "../validators/workHours.validator.js";
 import { validateDateInput } from "../validators/date.validator.js";
 import {
   createWorkHours,
-  getWorkHoursByDate,
-  updateWorkHoursByDate,
+  getWorkHoursByIdAndDate,
+  updateWorkHoursByIdAndDate,
+  deleteWorkHoursByIdAndDate,
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
+import { getUnavailableTimeSlotsByIdAndDate } from "../models/unavailableTimeSlots.model.js";
 
 export const addWorkHours = async (req, res) => {
   const { date, startTime, endTime, slotInterval } = req.body;
@@ -23,7 +25,13 @@ export const addWorkHours = async (req, res) => {
   if (error) return res.status(400).json({ message: error });
 
   try {
-    await createWorkHours({ date, startTime, endTime, slotInterval });
+    await createWorkHours({
+      userId: req.user.id,
+      date,
+      startTime,
+      endTime,
+      slotInterval,
+    });
     res.status(201).json({ message: "New work hours succesfully added" });
   } catch (error) {
     // error for duplicate dates
@@ -52,14 +60,21 @@ export const addWorkHours = async (req, res) => {
 };
 
 export const getWorkHours = async (req, res) => {
-  const { date } = req.params;
+  const { id, date } = req.params;
+
+  if (isNaN(id))
+    return res.status(400).json({ message: "ID must be a positive number" });
 
   const error = validateDateInput(date);
   if (error) return res.status(400).json({ message: error });
 
   try {
-    const workHours = await getWorkHoursByDate(date);
-    res.status(200).json({ workHours });
+    const workHours = await getWorkHoursByIdAndDate(id, date);
+
+    if (workHours.rowCount === 0)
+      return res.status(404).json({ message: `No work hours set for ${date}` });
+
+    res.status(200).json({ workHours: workHours.rows[0] });
   } catch (error) {
     console.error("An error occured while trying to get work hours:", error);
     res.status(500).json({
@@ -69,20 +84,23 @@ export const getWorkHours = async (req, res) => {
 };
 
 export const getAvailableTimeSlots = async (req, res) => {
-  const { date } = req.params;
+  const { id, date } = req.params;
+
+  if (isNaN(id))
+    return res.status(400).json({ message: "ID must be a positive number" });
 
   const error = validateDateInput(date);
   if (error) res.status(400).json({ message: error });
 
   try {
-    const workHours = await getWorkHoursByDate(date);
+    const workHours = await getWorkHoursByIdAndDate(id, date);
 
-    if (!workHours)
+    if (workHours.rowCount === 0)
       return res
         .status(200)
         .json({ message: `Work hours have not been set for ${date}` });
 
-    const { start_time, end_time, slot_interval } = workHours;
+    const { barber, start_time, end_time, slot_interval } = workHours.rows[0];
 
     // generate time slots based on work hours + slot interval
     const timeSlots = generateTimeSlots({
@@ -91,7 +109,17 @@ export const getAvailableTimeSlots = async (req, res) => {
       slotInterval: slot_interval,
     });
 
-    res.status(201).json({ slotInterval: slot_interval, timeSlots });
+    // get unavailable time slots
+    const result = (await getUnavailableTimeSlotsByIdAndDate(id, date)) || [];
+    const unavailableTimeSlots = result.map((res) => res.time_slot.slice(0, 5)); // slice to make it 00:00 instead of 00:00:00
+
+    const availableTimeSlots = timeSlots.filter(
+      (slot) => !unavailableTimeSlots.includes(slot),
+    );
+
+    res
+      .status(201)
+      .json({ barber, date, slotInterval: slot_interval, availableTimeSlots });
   } catch (error) {
     console.error(
       "An error occured while trying to get available time slots:",
@@ -110,9 +138,12 @@ export const updateWorkHours = async (req, res) => {
   const allowedFields = ["date", "start_time", "end_time", "slot_interval"];
 
   if (!setDate) return res.status(400).json({ message: "Date is required" });
-  
+
   const dateError = validateDateInput(setDate);
-  if (dateError) return res.status(400).json({message: "Date must be in YYYY-MM-DD format"});
+  if (dateError)
+    return res
+      .status(400)
+      .json({ message: "Date must be in YYYY-MM-DD format" });
 
   // take the keys of req.body object
   const keys = Object.keys(updates);
@@ -138,14 +169,15 @@ export const updateWorkHours = async (req, res) => {
   if (error) return res.status(400).json({ message: error });
 
   try {
-    const workHours = await getWorkHoursByDate(setDate);
-    if (!workHours)
+    const workHours = await getWorkHoursByIdAndDate(req.user.id, setDate);
+    if (workHours.rowCount === 0)
       return res
-        .status(200)
+        .status(400)
         .json({ message: `Work hours have not been set for ${setDate}` });
 
     const values = Object.values(updates);
-    const updatedWorkHours = await updateWorkHoursByDate({
+    const updatedWorkHours = await updateWorkHoursByIdAndDate({
+      userId: req.user.id,
       date: setDate,
       keys,
       values,
@@ -178,6 +210,34 @@ export const updateWorkHours = async (req, res) => {
     res.status(500).json({
       message:
         "Server error. An error occured while trying to update work hours.",
+    });
+  }
+};
+
+export const deleteWorkHours = async (req, res) => {
+  const { date } = req.params;
+
+  if (date === undefined)
+    return res.status(400).json({ message: "Date is required" });
+
+  const error = validateDateInput(date);
+  if (error) res.status(400).json({ message: error });
+
+  try {
+    const result = await deleteWorkHoursByIdAndDate(req.user.id, date);
+    if (result.rowCount === 0)
+      return res
+        .status(404)
+        .json({ message: `No work hours found for ${date}` });
+
+    res
+      .status(200)
+      .json({ message: `Work hours on ${date} is deleted successfully` });
+  } catch (error) {
+    console.error("An error occured while trying to delete work hours:", error);
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to delete work hours.",
     });
   }
 };

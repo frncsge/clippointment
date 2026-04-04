@@ -1,1 +1,1 @@
-# appointment system for my friend who cuts hair (side hustle)
+# appointment system for my friend who cuts hair (WIP)

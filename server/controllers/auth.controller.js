@@ -119,3 +119,32 @@ export const refresh = async (req, res) => {
     res.status(401).json({ message: "Invalid or expired refresh token" });
   }
 };
+
+export const logOut = async (req, res) => {
+  try {
+    // clear refresh token in redis if user is logged in
+    if (req.user?.id) {
+      await redisClient.del(`refreshToken:${req.user.id}`);
+    }
+
+    // clear access and refresh token cookies
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+    });
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+    });
+
+    res.status(200).json({ message: "Log-out successful" });
+  } catch (error) {
+    console.error("An error occured while trying to log user out:", error);
+    res.status(500).json({
+      message: "Server error. An error occured while trying to log user out.",
+    });
+  }
+};

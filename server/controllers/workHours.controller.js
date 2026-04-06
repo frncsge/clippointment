@@ -8,6 +8,7 @@ import {
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
 import { getUnavailableTimeSlotsByIdAndDate } from "../models/unavailableTimeSlots.model.js";
+import { isPastDate } from "../utils/date.util.js";
 
 export const addWorkHours = async (req, res) => {
   const { date, startTime, endTime, slotInterval } = req.body;
@@ -144,6 +145,13 @@ export const updateWorkHours = async (req, res) => {
     return res
       .status(400)
       .json({ message: "Date must be in YYYY-MM-DD format" });
+
+  // user cannot edit set work hours for a past date
+  if (isPastDate(setDate)) {
+    return res
+      .status(400)
+      .json({ message: "Cannot edit work hours for a past date" });
+  }
 
   // take the keys of req.body object
   const keys = Object.keys(updates);

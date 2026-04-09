@@ -80,6 +80,14 @@ export const addUnavailableTimeSlot = async (req, res) => {
       });
     }
 
+    if (error.code === "P0001") {
+      return res
+        .status(400)
+        .json({
+          message: "Cannot add time slot as unavailable for a past date",
+        });
+    }
+
     console.error(
       "An error occured while trying to add unavailable time slot:",
       error,

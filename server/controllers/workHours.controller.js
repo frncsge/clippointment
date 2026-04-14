@@ -8,6 +8,7 @@ import {
 } from "../models/workHours.model.js";
 import { generateTimeSlots } from "../utils/time.util.js";
 import { getUnavailableTimeSlotsByIdAndDate } from "../models/unavailableTimeSlots.model.js";
+import { isPastDate } from "../utils/date.util.js";
 
 export const addWorkHours = async (req, res) => {
   const { date, startTime, endTime, slotInterval } = req.body;
@@ -222,6 +223,12 @@ export const deleteWorkHours = async (req, res) => {
 
   const error = validateDateInput(date);
   if (error) res.status(400).json({ message: error });
+
+  // delete not allowed for past date
+  if (isPastDate(date))
+    return res
+      .status(400)
+      .json({ message: "Cannot delete work hours for a past date" });
 
   try {
     const result = await deleteWorkHoursByIdAndDate(req.user.id, date);

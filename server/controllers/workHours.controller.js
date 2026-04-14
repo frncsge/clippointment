@@ -233,7 +233,7 @@ export const deleteWorkHours = async (req, res) => {
   // delete not allowed for past date
   if (isPastDate(date))
     return res
-      .status(400)
+      .status(403)
       .json({ message: "Cannot delete work hours for a past date" });
 
   try {

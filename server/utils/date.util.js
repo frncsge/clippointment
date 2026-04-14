@@ -19,3 +19,12 @@ export const validateDateValues = (date) => {
 
   return true;
 };
+
+export const isPastDate = (dateString) => {
+  const inputDate = new Date(dateString);
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  return inputDate < today;
+};

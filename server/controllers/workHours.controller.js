@@ -146,6 +146,12 @@ export const updateWorkHours = async (req, res) => {
       .status(400)
       .json({ message: "Date must be in YYYY-MM-DD format" });
 
+  // prevent user from updating work hours for a past date
+  if (isPastDate(setDate))
+    return res
+      .status(403)
+      .json({ message: "Cannot update work hours for a past date" });
+
   // take the keys of req.body object
   const keys = Object.keys(updates);
   if (keys.length === 0)

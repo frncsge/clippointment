@@ -119,7 +119,7 @@ export const getAvailableTimeSlots = async (req, res) => {
     );
 
     res
-      .status(201)
+      .status(200)
       .json({ barber, date, slotInterval: slot_interval, availableTimeSlots });
   } catch (error) {
     console.error(

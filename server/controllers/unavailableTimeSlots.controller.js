@@ -3,8 +3,10 @@ import { generateTimeSlots, validateTime } from "../utils/time.util.js";
 import {
   addUnavailableTimeSlotToDB,
   getUnavailableTimeSlotsByIdAndDate,
+  deleteUnavailableTimeSlot,
 } from "../models/unavailableTimeSlots.model.js";
 import { getWorkHoursByIdAndDate } from "../models/workHours.model.js";
+import { isPastDate } from "../utils/date.util.js";
 
 export const addUnavailableTimeSlot = async (req, res) => {
   const { date } = req.params;
@@ -15,6 +17,12 @@ export const addUnavailableTimeSlot = async (req, res) => {
 
   const error = validateDateInput(date);
   if (error) return res.status(400).json({ message: error });
+
+  // prevent user from adding unavailable time slot for a past date
+  if (isPastDate(date))
+    return res
+      .status(403)
+      .json({ message: "Cannot add unavailable time slot for a past date" });
 
   if (!timeSlots)
     return res.status(400).json({ message: "Time slot is required" });
@@ -81,13 +89,57 @@ export const addUnavailableTimeSlot = async (req, res) => {
     }
 
     if (error.code === "P0001") {
-      return res
-        .status(400)
-        .json({
-          message: "Cannot add time slot as unavailable for a past date",
-        });
+      return res.status(400).json({
+        message: "Cannot add time slot as unavailable for a past date",
+      });
     }
 
+    console.error(
+      "An error occured while trying to add unavailable time slot:",
+      error,
+    );
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to add unavailable time slot.",
+    });
+  }
+};
+
+export const removeUnavailableTimeSlot = async (req, res) => {
+  const { date } = req.params;
+  const { timeSlots } = req.body;
+
+  if (date === undefined)
+    return res.status(400).json({ message: "Date is required" });
+
+  const error = validateDateInput(date);
+  if (error) return res.status(400).json({ message: error });
+
+  // prevent user from adding unavailable time slot for a past date
+  if (isPastDate(date))
+    return res
+      .status(403)
+      .json({ message: "Cannot add unavailable time slot for a past date" });
+
+  if (!timeSlots)
+    return res.status(400).json({ message: "Time slot is required" });
+
+  if (!Array.isArray(timeSlots))
+    return res.status(400).json({ message: "Time slot must be an array" });
+
+  // validate time slot
+  const hasInvalidTime = timeSlots.some((timeSlot) => !validateTime(timeSlot));
+
+  if (hasInvalidTime)
+    return res.status(400).json({ message: "Invalid time (HH:MM)" });
+
+  try {
+    await deleteUnavailableTimeSlot({ userId: req.user.id, date, timeSlots });
+
+    res.status(200).json({
+      message: `${timeSlots.join(", ")} removed as unavailable time ${timeSlots.length > 1 ? "slots" : "slot"}`,
+    });
+  } catch (error) {
     console.error(
       "An error occured while trying to add unavailable time slot:",
       error,

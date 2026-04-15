@@ -2,7 +2,9 @@ import pool from "../../config/dbConfig.js";
 
 export const addUnavailableTimeSlotToDB = async (workHoursId, timeSlots) => {
   try {
-    const valuesClause = timeSlots.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(", ");
+    const valuesClause = timeSlots
+      .map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`)
+      .join(", ");
 
     const values = timeSlots.flatMap((timeSlot) => [workHoursId, timeSlot]);
 
@@ -42,6 +44,29 @@ export const getUnavailableTimeSlotsByIdAndDate = async (userId, date) => {
   } catch (error) {
     console.error(
       "An error occured while trying to get an unavailable time slot:",
+      error,
+    );
+    throw error;
+  }
+};
+
+export const deleteUnavailableTimeSlot = async ({ userId, date, timeSlots }) => {
+  try {
+    await pool.query(
+      `
+        DELETE FROM unavailable_time_slots utm
+        USING work_hours wh, users u
+        WHERE utm.work_hours_id = wh.id
+	        AND wh.user_id = u.id 
+	        AND u.id = $1 
+          AND wh.date = $2
+          AND utm.time_slot = ANY($3);
+      `,
+      [userId, date, timeSlots],
+    );
+  } catch (error) {
+    console.error(
+      "An error occured while trying to delete an unavailable time slot:",
       error,
     );
     throw error;

@@ -14,7 +14,7 @@ export const logIn = async (req, res) => {
   if (!username || !password)
     return res
       .status(400)
-      .json({ message: "Username and password are required" });
+      .json({ message: "Email and password are required" });
 
   try {
     const user = await getUserByUsername(username);
@@ -22,7 +22,7 @@ export const logIn = async (req, res) => {
     if (user.rowCount === 0)
       return res
         .status(401)
-        .json({ message: "Incorrect username or password" });
+        .json({ message: "Incorrect email or password" });
 
     // check password
     const hashedPassword = user.rows[0].hashed_password;
@@ -31,7 +31,7 @@ export const logIn = async (req, res) => {
     if (!match)
       return res
         .status(401)
-        .json({ message: "Incorrect username or password" });
+        .json({ message: "Incorrect email or password" });
 
     // if match, create session
     const userId = user.rows[0].id;

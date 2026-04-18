@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { getUserByUsername } from "../models/users.model.js";
+import { getUserByEmail } from "../models/users.model.js";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -8,16 +8,16 @@ import redisClient from "../../config/redisConfig.js";
 import jwt from "jsonwebtoken";
 
 export const logIn = async (req, res) => {
-  const username = req.body.username?.trim();
+  const email = req.body.email?.trim();
   const password = req.body.password?.trim();
 
-  if (!username || !password)
+  if (!email || !password)
     return res
       .status(400)
       .json({ message: "Email and password are required" });
 
   try {
-    const user = await getUserByUsername(username);
+    const user = await getUserByEmail(email);
 
     if (user.rowCount === 0)
       return res

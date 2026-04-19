@@ -1,5 +1,9 @@
 import bcrypt from "bcrypt";
-import { getUserByEmail, storeNewUser } from "../models/users.model.js";
+import {
+  getUserByEmail,
+  storeNewUser,
+  verifyUser,
+} from "../models/users.model.js";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -135,6 +139,40 @@ export const register = async (req, res) => {
     res.status(500).json({
       message:
         "Server error. An error occured while trying to register new user.",
+    });
+  }
+};
+
+export const verify = async (req, res) => {
+  const { token } = req.query;
+
+  if (!token)
+    return res
+      .status(400)
+      .json({ message: "Expired or invalid email verification token" });
+
+  try {
+    // retrieve verification token from redis
+    const stored = await redisClient.get(`verify:${token}`);
+
+    if (!stored)
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification token" });
+
+    // if token is valid, mark user as verified
+    const userId = Number(stored);
+    await verifyUser(userId);
+
+    res.status(200).send("Your account has been verified successfully!");
+  } catch (error) {
+    console.error(
+      "An error occured while trying to verify user account:",
+      error,
+    );
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to verify user account.",
     });
   }
 };

@@ -164,6 +164,9 @@ export const verify = async (req, res) => {
     const userId = Number(stored);
     await verifyUser(userId);
 
+    // delete the saved token from redis
+    await redisClient.del(`verify:${token}`);
+
     res.status(200).send("Your account has been verified successfully!");
   } catch (error) {
     console.error(

@@ -26,3 +26,17 @@ export const storeNewUser = async ({ email, hashedPassword, accountName }) => {
     throw error;
   }
 };
+
+export const verifyUser = async (userId) => {
+  try {
+    await pool.query("UPDATE users SET is_verified = true WHERE id = $1", [
+      userId,
+    ]);
+  } catch (error) {
+    console.error(
+      "An error occured while trying to mark user account as verified:",
+      error,
+    );
+    throw error;
+  }
+};

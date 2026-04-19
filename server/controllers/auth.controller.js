@@ -30,6 +30,9 @@ export const logIn = async (req, res) => {
     if (user.rowCount === 0)
       return res.status(401).json({ message: "Incorrect email or password" });
 
+    if (user.rows[0].is_verified === false)
+      return res.status(400).json({ message: "Email is not yet verified" });
+
     // check password
     const hashedPassword = user.rows[0].hashed_password;
     const match = await bcrypt.compare(password, hashedPassword);

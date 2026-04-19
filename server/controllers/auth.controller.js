@@ -124,8 +124,8 @@ export const register = async (req, res) => {
     );
 
     // send email verification link
-    const link = `http://localhost:3000/api/verify?token=${verificationToken}`;
-    sendVerificationEmail(email, link).catch(console.error);
+    const link = `http://localhost:3000/api/auth/verify?token=${verificationToken}`;
+    await sendVerificationEmail(email, link);
 
     res
       .status(200)

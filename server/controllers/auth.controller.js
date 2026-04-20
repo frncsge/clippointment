@@ -130,7 +130,7 @@ export const register = async (req, res) => {
     );
 
     // send email verification link
-    const link = `http://localhost:3000/api/auth/verify?token=${verificationToken}`;
+    const link = `http://localhost:3000/api/auth/email-verifications/${verificationToken}`;
     await sendVerificationEmail(email, link);
 
     res
@@ -150,7 +150,7 @@ export const register = async (req, res) => {
 };
 
 export const verify = async (req, res) => {
-  const { token } = req.query;
+  const { token } = req.params;
 
   if (!token)
     return res

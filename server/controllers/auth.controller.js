@@ -265,3 +265,45 @@ export const logOut = async (req, res) => {
     });
   }
 };
+
+export const sendVerification = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  try {
+    const user = await getUserByEmail(email);
+
+    if (user.rows[0] && user.rows[0].is_verified === false) {
+      const { id: userId } = user.rows[0];
+
+      // generate token for verification
+      const verificationToken = generateToken();
+
+      // store token in redis with 10 mins TTL
+      await redisClient.setEx(
+        `verify:${verificationToken}`,
+        10 * 60,
+        String(userId),
+      );
+
+      // send email verification link
+      const link = `http://localhost:3000/api/auth/email-verifications/${verificationToken}`;
+      await sendVerificationEmail(email, link);
+    }
+
+    res.status(200).json({
+      message:
+        "If an account exists for this email, a verification link has been sent.",
+    });
+  } catch (error) {
+    console.error("An error occured while trying to send email verification:", error);
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to send email verification.",
+    });
+  }
+};

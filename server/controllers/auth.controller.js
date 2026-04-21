@@ -3,17 +3,22 @@ import {
   getUserByEmail,
   storeNewUser,
   verifyUser,
+  updatePassword,
 } from "../models/users.model.js";
 import {
   generateAccessToken,
   generateRefreshToken,
   generateToken,
 } from "../utils/token.util.js";
-import { isValidEmail } from "../utils/email.util.js";
+import {
+  isValidEmail,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "../utils/email.util.js";
 import { isValidPassword, passwordsMatch } from "../utils/password.util.js";
-import { sendVerificationEmail } from "../utils/email.util.js";
 import redisClient from "../../config/redisConfig.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const saltRound = 12;
 
@@ -300,10 +305,48 @@ export const sendVerification = async (req, res) => {
         "If an account exists for this email, a verification link has been sent.",
     });
   } catch (error) {
-    console.error("An error occured while trying to send email verification:", error);
+    console.error(
+      "An error occured while trying to send email verification:",
+      error,
+    );
     res.status(500).json({
       message:
         "Server error. An error occured while trying to send email verification.",
+    });
+  }
+};
+
+export const requestPasswordReset = async (req, res) => {
+  const email = req.body.email?.trim();
+
+  if (!email)
+    return res.status(400).json({
+      message: "Email is required",
+    });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  try {
+    const user = await getUserByEmail(email);
+
+    if (user.rows[0] && user.rowCount > 0) {
+      const code = crypto.randomInt(100000, 1000000);
+
+      // store code in redis
+      await redisClient.setEx(`password-reset:${email}`, 3 * 60, String(code));
+      await sendPasswordResetEmail(email, code);
+    }
+
+    res.status(200).json({
+      message:
+        "If an account exists for this email, a 6-digit reset-password code has been sent.",
+    });
+  } catch (error) {
+    console.error("An error occured while trying to register new user:", error);
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to register new user.",
     });
   }
 };

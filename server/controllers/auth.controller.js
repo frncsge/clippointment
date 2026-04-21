@@ -1,37 +1,47 @@
 import bcrypt from "bcrypt";
-import { getUserByEmail } from "../models/users.model.js";
+import {
+  getUserByEmail,
+  storeNewUser,
+  verifyUser,
+} from "../models/users.model.js";
 import {
   generateAccessToken,
   generateRefreshToken,
+  generateToken,
 } from "../utils/token.util.js";
+import { isValidEmail } from "../utils/email.util.js";
+import { isValidPassword, passwordsMatch } from "../utils/password.util.js";
+import { sendVerificationEmail } from "../utils/email.util.js";
 import redisClient from "../../config/redisConfig.js";
 import jwt from "jsonwebtoken";
+
+const saltRound = 12;
 
 export const logIn = async (req, res) => {
   const email = req.body.email?.trim();
   const password = req.body.password?.trim();
 
   if (!email || !password)
-    return res
-      .status(400)
-      .json({ message: "Email and password are required" });
+    return res.status(400).json({ message: "Email and password are required" });
 
   try {
     const user = await getUserByEmail(email);
 
     if (user.rowCount === 0)
+      return res.status(401).json({ message: "Incorrect email or password" });
+
+    // if account is not verified yet
+    if (user.rows[0].is_verified === false)
       return res
-        .status(401)
-        .json({ message: "Incorrect email or password" });
+        .status(400)
+        .json({ message: "Please verify your email before logging in" });
 
     // check password
     const hashedPassword = user.rows[0].hashed_password;
     const match = await bcrypt.compare(password, hashedPassword);
 
     if (!match)
-      return res
-        .status(401)
-        .json({ message: "Incorrect email or password" });
+      return res.status(401).json({ message: "Incorrect email or password" });
 
     // if match, create session
     const userId = user.rows[0].id;
@@ -65,6 +75,113 @@ export const logIn = async (req, res) => {
     console.error("An error occured while trying to log in user:", error);
     res.status(500).json({
       message: "Server error. An error occured while trying to log in user.",
+    });
+  }
+};
+
+export const register = async (req, res) => {
+  const email = req.body.email?.trim();
+  const password = req.body.password?.trim();
+  const confirmPassword = req.body.confirmPassword?.trim();
+  const accountName = req.body.accountName?.trim();
+
+  // empty values not allowed
+  if (!email || !password || !confirmPassword || !accountName)
+    return res.status(400).json({
+      message: "All inputs are required",
+      requiredInputs: ["email", "password", "confirmPassword", "accountName"],
+    });
+
+  // example of invalid: user email@domain.com (space inside)
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  // validate password
+  if (!isValidPassword(password))
+    return res
+      .status(400)
+      .json({ message: "Password must be at least 8 characters long" });
+
+  if (!passwordsMatch(password, confirmPassword))
+    return res.status(400).json({ message: "Passwords do not match" });
+
+  try {
+    // check if user already exists
+    const user = await getUserByEmail(email);
+
+    if (user.rowCount > 0)
+      return res.status(400).json({ message: "Email already registered" });
+
+    // hash password
+    const hashedPassword = await bcrypt.hash(password, saltRound);
+
+    // store new user in db with is_verified col equal to false (need email verification)
+    const result = await storeNewUser({ email, hashedPassword, accountName });
+    const { id: userId } = result.rows[0];
+
+    // generate token for verification
+    const verificationToken = generateToken();
+
+    // store token in redis with 10 mins TTL
+    await redisClient.setEx(
+      `verify:${verificationToken}`,
+      10 * 60,
+      String(userId),
+    );
+
+    // send email verification link
+    const link = `http://localhost:3000/api/auth/email-verifications/${verificationToken}`;
+    await sendVerificationEmail(email, link);
+
+    res
+      .status(200)
+      .json({ message: "Verifiaction email sent. Check your inbox" });
+  } catch (error) {
+    // duplicate email (for idempotency)
+    if (error.code === "23505")
+      return res.status(400).json({ message: "Email already resgistered" });
+
+    console.error("An error occured while trying to register new user:", error);
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to register new user.",
+    });
+  }
+};
+
+export const verify = async (req, res) => {
+  const { token } = req.params;
+
+  if (!token)
+    return res
+      .status(400)
+      .json({ message: "Expired or invalid email verification token" });
+
+  try {
+    // retrieve verification token from redis
+    const stored = await redisClient.get(`verify:${token}`);
+
+    if (!stored)
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification token" });
+
+    // if token is valid, mark user as verified
+    const userId = Number(stored);
+    await verifyUser(userId);
+
+    // delete the saved token from redis
+    await redisClient.del(`verify:${token}`);
+
+    res.status(200).send("Your account has been verified successfully!");
+  } catch (error) {
+    console.error(
+      "An error occured while trying to verify user account:",
+      error,
+    );
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to verify user account.",
     });
   }
 };
@@ -145,6 +262,48 @@ export const logOut = async (req, res) => {
     console.error("An error occured while trying to log user out:", error);
     res.status(500).json({
       message: "Server error. An error occured while trying to log user out.",
+    });
+  }
+};
+
+export const sendVerification = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  try {
+    const user = await getUserByEmail(email);
+
+    if (user.rows[0] && user.rows[0].is_verified === false) {
+      const { id: userId } = user.rows[0];
+
+      // generate token for verification
+      const verificationToken = generateToken();
+
+      // store token in redis with 10 mins TTL
+      await redisClient.setEx(
+        `verify:${verificationToken}`,
+        10 * 60,
+        String(userId),
+      );
+
+      // send email verification link
+      const link = `http://localhost:3000/api/auth/email-verifications/${verificationToken}`;
+      await sendVerificationEmail(email, link);
+    }
+
+    res.status(200).json({
+      message:
+        "If an account exists for this email, a verification link has been sent.",
+    });
+  } catch (error) {
+    console.error("An error occured while trying to send email verification:", error);
+    res.status(500).json({
+      message:
+        "Server error. An error occured while trying to send email verification.",
     });
   }
 };

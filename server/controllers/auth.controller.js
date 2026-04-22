@@ -345,10 +345,9 @@ export const sendOtp = async (req, res) => {
         "If an account exists for this email, a 6-digit OTP has been sent.",
     });
   } catch (error) {
-    console.error("An error occured while trying to register new user:", error);
+    console.error("An error occured while trying to send OTP:", error);
     res.status(500).json({
-      message:
-        "Server error. An error occured while trying to register new user.",
+      message: "Server error. An error occured while trying to send OTP.",
     });
   }
 };
@@ -392,9 +391,61 @@ export const verifyOtp = async (req, res) => {
       .status(201)
       .json({ message: "OTP verified. You can now reset your password" });
   } catch (error) {
+    console.error("An error occured while trying to verify OTP:", error);
+    res.status(500).json({
+      message: "Server error. An error occured while trying to verify OTP.",
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const email = req.body.email?.trim();
+  const newPassword = req.body.newPassword?.trim();
+  const confirmNewPassword = req.body.confirmNewPassword?.trim();
+
+  if (!email || !newPassword || !confirmNewPassword)
+    return res.status(400).json({
+      message: "All inputs are requried",
+      required: ["email", "newPassword", "confirmNewPassword"],
+    });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  try {
+    // check if email has valid password-reset session
+    const session = await redisClient.get(`password-reset-session:${email}`);
+
+    if (!session)
+      return res.status(403).json({
+        message:
+          "Password reset session is expired or invalid. Please request a new 6-digit OTP",
+      });
+
+    // validate the new password
+    if (!isValidPassword(newPassword))
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters long" });
+
+    if (!passwordsMatch(newPassword, confirmNewPassword))
+      return res.status(400).json({ message: "Passwords do not match" });
+
+    // hash the new password
+    const newHashedPassword = await bcrypt.hash(newPassword, saltRound);
+
+    await updatePasswordByEmail(email, newHashedPassword);
+
+    // delete the password reset session
+    await redisClient.del(`password-reset-session:${email}`);
+
+    res.status(200).json({message: "Password has been reset successfully!"})
+  } catch (error) {
     console.error("An error occured while trying to reset password:", error);
     res.status(500).json({
       message: "Server error. An error occured while trying to reset password.",
     });
   }
 };
+
+// create session after password reset

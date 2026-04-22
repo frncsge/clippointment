@@ -7,7 +7,8 @@ import {
   verify,
   sendVerification,
   sendOtp,
-  verifyOtp
+  verifyOtp,
+  resetPassword
 } from "../controllers/auth.controller.js";
 
 const router = express.Router();
@@ -19,6 +20,7 @@ router.post("/refresh", refresh);
 router.post("/email-verifications", sendVerification);
 router.post("/password-resets", sendOtp);
 router.post("/password-resets/verify", verifyOtp);
+router.post("/password-resets/confirm", resetPassword);
 
 router.get("/email-verifications/:token", verify);
 

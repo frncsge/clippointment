@@ -3,7 +3,7 @@ import {
   getUserByEmail,
   storeNewUser,
   verifyUser,
-  updatePassword,
+  updatePasswordByEmail,
 } from "../models/users.model.js";
 import {
   generateAccessToken,
@@ -15,10 +15,12 @@ import {
   sendVerificationEmail,
   sendPasswordResetEmail,
 } from "../utils/email.util.js";
+import { isValidOtp } from "../utils/otp.util.js";
 import { isValidPassword, passwordsMatch } from "../utils/password.util.js";
 import redisClient from "../../config/redisConfig.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { REDIS_FLUSH_MODES } from "redis";
 
 const saltRound = 12;
 
@@ -316,7 +318,7 @@ export const sendVerification = async (req, res) => {
   }
 };
 
-export const requestPasswordReset = async (req, res) => {
+export const sendOtp = async (req, res) => {
   const email = req.body.email?.trim();
 
   if (!email)
@@ -340,13 +342,59 @@ export const requestPasswordReset = async (req, res) => {
 
     res.status(200).json({
       message:
-        "If an account exists for this email, a 6-digit reset-password code has been sent.",
+        "If an account exists for this email, a 6-digit OTP has been sent.",
     });
   } catch (error) {
     console.error("An error occured while trying to register new user:", error);
     res.status(500).json({
       message:
         "Server error. An error occured while trying to register new user.",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  const email = req.body.email?.trim();
+  const otp = req.body.otp?.trim();
+
+  if (!email)
+    return res.status(400).json({
+      message: "Email is required",
+    });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  if (!otp) return res.status(400).json({ message: "6-digit OTP is required" });
+
+  if (!isValidOtp(otp))
+    return res.status(400).json({ message: "Invalid or expired OTP" });
+
+  try {
+    // retrieve stored otp in redis
+    const storedOtp = await redisClient.get(`password-reset:${email}`);
+
+    if (!storedOtp)
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    if (otp !== storedOtp)
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    // if otp valid, delete the used OTP and create reset password session using redis
+    await redisClient.del(`password-reset:${email}`);
+    await redisClient.setEx(
+      `password-reset-session:${email}`,
+      5 * 60,
+      "OTP verified",
+    );
+
+    res
+      .status(201)
+      .json({ message: "OTP verified. You can now reset your password" });
+  } catch (error) {
+    console.error("An error occured while trying to reset password:", error);
+    res.status(500).json({
+      message: "Server error. An error occured while trying to reset password.",
     });
   }
 };

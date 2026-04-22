@@ -42,11 +42,11 @@ export const verifyUser = async (userId) => {
   }
 };
 
-export const updatePassword = async (userId, password) => {
+export const updatePasswordByEmail = async (email, password) => {
   try {
-    await pool.query("UPDATE users SET hashed_password = $1 WHERE id = $2", [
+    await pool.query("UPDATE users SET hashed_password = $1 WHERE email = $2", [
       password,
-      userId,
+      email,
     ]);
   } catch (error) {
     console.error(

@@ -6,7 +6,8 @@ import {
   register,
   verify,
   sendVerification,
-  requestPasswordReset,
+  sendOtp,
+  verifyOtp
 } from "../controllers/auth.controller.js";
 
 const router = express.Router();
@@ -16,7 +17,8 @@ router.post("/log-in", logIn);
 router.post("/log-out", logOut);
 router.post("/refresh", refresh);
 router.post("/email-verifications", sendVerification);
-router.post("/password-resets", requestPasswordReset);
+router.post("/password-resets", sendOtp);
+router.post("/password-resets/verify", verifyOtp);
 
 router.get("/email-verifications/:token", verify);
 

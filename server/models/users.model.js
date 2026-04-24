@@ -44,10 +44,12 @@ export const verifyUser = async (userId) => {
 
 export const updatePasswordByEmail = async (email, password) => {
   try {
-    await pool.query("UPDATE users SET hashed_password = $1 WHERE email = $2", [
-      password,
-      email,
-    ]);
+    const result = await pool.query(
+      "UPDATE users SET hashed_password = $1 WHERE email = $2 RETURNING id",
+      [password, email],
+    );
+
+    return result;
   } catch (error) {
     console.error(
       "An error occured while trying to update user account password:",

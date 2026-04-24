@@ -1,3 +1,4 @@
+import { TIME_SERIES_DUPLICATE_POLICIES } from "redis";
 import pool from "../../config/dbConfig.js";
 
 export const getUserByEmail = async (email) => {
@@ -35,6 +36,23 @@ export const verifyUser = async (userId) => {
   } catch (error) {
     console.error(
       "An error occured while trying to mark user account as verified:",
+      error,
+    );
+    throw error;
+  }
+};
+
+export const updatePasswordByEmail = async (email, password) => {
+  try {
+    const result = await pool.query(
+      "UPDATE users SET hashed_password = $1 WHERE email = $2 RETURNING id",
+      [password, email],
+    );
+
+    return result;
+  } catch (error) {
+    console.error(
+      "An error occured while trying to update user account password:",
       error,
     );
     throw error;

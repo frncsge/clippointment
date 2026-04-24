@@ -3,17 +3,24 @@ import {
   getUserByEmail,
   storeNewUser,
   verifyUser,
+  updatePasswordByEmail,
 } from "../models/users.model.js";
 import {
   generateAccessToken,
   generateRefreshToken,
   generateToken,
 } from "../utils/token.util.js";
-import { isValidEmail } from "../utils/email.util.js";
+import {
+  isValidEmail,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "../utils/email.util.js";
+import { isValidOtp } from "../utils/otp.util.js";
 import { isValidPassword, passwordsMatch } from "../utils/password.util.js";
-import { sendVerificationEmail } from "../utils/email.util.js";
 import redisClient from "../../config/redisConfig.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { REDIS_FLUSH_MODES } from "redis";
 
 const saltRound = 12;
 
@@ -300,10 +307,170 @@ export const sendVerification = async (req, res) => {
         "If an account exists for this email, a verification link has been sent.",
     });
   } catch (error) {
-    console.error("An error occured while trying to send email verification:", error);
+    console.error(
+      "An error occured while trying to send email verification:",
+      error,
+    );
     res.status(500).json({
       message:
         "Server error. An error occured while trying to send email verification.",
+    });
+  }
+};
+
+export const sendOtp = async (req, res) => {
+  const email = req.body.email?.trim();
+
+  if (!email)
+    return res.status(400).json({
+      message: "Email is required",
+    });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  try {
+    const user = await getUserByEmail(email);
+
+    if (user.rows[0] && user.rowCount > 0) {
+      const code = crypto.randomInt(100000, 1000000);
+
+      // store code in redis
+      await redisClient.setEx(`password-reset:${email}`, 3 * 60, String(code));
+      await sendPasswordResetEmail(email, code);
+    }
+
+    res.status(200).json({
+      message:
+        "If an account exists for this email, a 6-digit OTP has been sent.",
+    });
+  } catch (error) {
+    console.error("An error occured while trying to send OTP:", error);
+    res.status(500).json({
+      message: "Server error. An error occured while trying to send OTP.",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  const email = req.body.email?.trim();
+  const otp = req.body.otp?.trim();
+
+  if (!email)
+    return res.status(400).json({
+      message: "Email is required",
+    });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  if (!otp) return res.status(400).json({ message: "6-digit OTP is required" });
+
+  if (!isValidOtp(otp))
+    return res.status(400).json({ message: "Invalid or expired OTP" });
+
+  try {
+    // retrieve stored otp in redis
+    const storedOtp = await redisClient.get(`password-reset:${email}`);
+
+    if (!storedOtp)
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    if (otp !== storedOtp)
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    // if otp valid, delete the used OTP and create reset password session using redis
+    await redisClient.del(`password-reset:${email}`);
+    await redisClient.setEx(
+      `password-reset-session:${email}`,
+      5 * 60,
+      "OTP verified",
+    );
+
+    res
+      .status(201)
+      .json({ message: "OTP verified. You can now reset your password" });
+  } catch (error) {
+    console.error("An error occured while trying to verify OTP:", error);
+    res.status(500).json({
+      message: "Server error. An error occured while trying to verify OTP.",
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const email = req.body.email?.trim();
+  const newPassword = req.body.newPassword?.trim();
+  const confirmNewPassword = req.body.confirmNewPassword?.trim();
+
+  if (!email || !newPassword || !confirmNewPassword)
+    return res.status(400).json({
+      message: "All inputs are requried",
+      required: ["email", "newPassword", "confirmNewPassword"],
+    });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ message: "Invalid email format" });
+
+  try {
+    // check if email has valid password-reset session
+    const session = await redisClient.get(`password-reset-session:${email}`);
+
+    if (!session)
+      return res.status(403).json({
+        message:
+          "Password reset session is expired or invalid. Please request a new 6-digit OTP",
+      });
+
+    // validate the new password
+    if (!isValidPassword(newPassword))
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters long" });
+
+    if (!passwordsMatch(newPassword, confirmNewPassword))
+      return res.status(400).json({ message: "Passwords do not match" });
+
+    // hash the new password
+    const newHashedPassword = await bcrypt.hash(newPassword, saltRound);
+
+    const result = await updatePasswordByEmail(email, newHashedPassword);
+
+    // create session
+    const userId = result.rows[0].id;
+    const accessToken = generateAccessToken(userId);
+    const refreshToken = generateRefreshToken(userId);
+
+    // store refresh token in redis
+    const sevenDaysInSecs = 7 * 24 * 60 * 60;
+    await redisClient.setEx(
+      `refreshToken:${userId}`,
+      sevenDaysInSecs,
+      refreshToken,
+    );
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // delete the password reset session
+    await redisClient.del(`password-reset-session:${email}`);
+
+    res.status(200).json({ message: "Password has been reset successfully!" });
+  } catch (error) {
+    console.error("An error occured while trying to reset password:", error);
+    res.status(500).json({
+      message: "Server error. An error occured while trying to reset password.",
     });
   }
 };

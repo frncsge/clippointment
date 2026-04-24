@@ -8,9 +8,18 @@ export const isValidEmail = (email) => {
 
 export const sendVerificationEmail = async (email, link) => {
   await resend.emails.send({
-    from: "Clipo <onboarding@resend.dev>",
+    from: "Clippointment <onboarding@resend.dev>",
     to: email,
     subject: "Verify your email",
     html: `<a href="${link}">Verify Email</a>`,
+  });
+};
+
+export const sendPasswordResetEmail = async (email, code) => {
+  await resend.emails.send({
+    from: "Clippointment <onboarding@resend.dev>",
+    to: email,
+    subject: "Password reset 6-digit code",
+    text: `Here is the 6-digit code ${code}. This expires in 3 minutes`,
   });
 };

@@ -434,12 +434,39 @@ export const resetPassword = async (req, res) => {
     // hash the new password
     const newHashedPassword = await bcrypt.hash(newPassword, saltRound);
 
-    await updatePasswordByEmail(email, newHashedPassword);
+    const result = await updatePasswordByEmail(email, newHashedPassword);
+
+    // create session
+    const userId = result.rows[0].id;
+    const accessToken = generateAccessToken(userId);
+    const refreshToken = generateRefreshToken(userId);
+
+    // store refresh token in redis
+    const sevenDaysInSecs = 7 * 24 * 60 * 60;
+    await redisClient.setEx(
+      `refreshToken:${userId}`,
+      sevenDaysInSecs,
+      refreshToken,
+    );
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     // delete the password reset session
     await redisClient.del(`password-reset-session:${email}`);
 
-    res.status(200).json({message: "Password has been reset successfully!"})
+    res.status(200).json({ message: "Password has been reset successfully!" });
   } catch (error) {
     console.error("An error occured while trying to reset password:", error);
     res.status(500).json({
@@ -447,5 +474,3 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
-
-// create session after password reset

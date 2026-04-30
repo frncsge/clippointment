@@ -6,7 +6,10 @@ import {
   updateWorkHours,
   deleteWorkHours,
 } from "../controllers/workHours.controller.js";
-import { addUnavailableTimeSlot, removeUnavailableTimeSlot } from "../controllers/unavailableTimeSlots.controller.js";
+import {
+  addUnavailableTimeSlot,
+  removeUnavailableTimeSlot,
+} from "../controllers/unavailableTimeSlots.controller.js";
 import { authenticateUser } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
@@ -24,6 +27,10 @@ router.get("/barbers/:id/work-hours/:date/time-slots", getAvailableTimeSlots);
 router.patch("/work-hours/:date", authenticateUser, updateWorkHours);
 
 router.delete("/work-hours/:date", authenticateUser, deleteWorkHours);
-router.delete("/work-hours/:date/unavailable-time-slots", authenticateUser, removeUnavailableTimeSlot);
+router.delete(
+  "/work-hours/:date/unavailable-time-slots",
+  authenticateUser,
+  removeUnavailableTimeSlot,
+);
 
 export default router;
